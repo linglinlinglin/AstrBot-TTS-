@@ -29,6 +29,26 @@
     "type": "string",
     "default": "mp3"
   },
+  "mock_mode": {
+    "description": "是否启用零消耗 mock 模式。开启后不会调用悟声 API，也不会调用翻译 LLM，只发送测试音频。",
+    "type": "bool",
+    "default": false
+  },
+  "mock_audio_url": {
+    "description": "可选：mock 模式下直接发送的测试音频 URL。留空则生成本地 WAV 测试音频。",
+    "type": "string",
+    "default": ""
+  },
+  "mock_duration_seconds": {
+    "description": "mock 本地 WAV 测试音频时长，默认 1 秒。",
+    "type": "int",
+    "default": 1
+  },
+  "mock_frequency_hz": {
+    "description": "mock 本地 WAV 测试音频频率，默认 440Hz。",
+    "type": "int",
+    "default": 440
+  },
   "send_as": {
     "description": "发送方式：file 表示发送音频文件，record 表示尝试直接发送语音。",
     "type": "string",

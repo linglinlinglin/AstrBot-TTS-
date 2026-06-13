@@ -4,7 +4,9 @@ import json
 import math
 import os
 import re
+import struct
 import uuid
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,7 +15,7 @@ import aiohttp
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
-from astrbot.api.message_components import File, Plain, Record
+from astrbot.api.message_components import File, Plain
 from astrbot.api.star import Context, Star, register
 from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
 
@@ -64,8 +66,11 @@ class WusoundTtsPlugin(Star):
 
         async with self.semaphore:
             try:
-                spoken_text = await self._translate_to_japanese(event, source_text)
-                audio = await self._generate_audio(spoken_text)
+                if self._get_bool("mock_mode", False):
+                    audio = self._generate_mock_audio()
+                else:
+                    spoken_text = await self._translate_to_japanese(event, source_text)
+                    audio = await self._generate_audio(spoken_text)
                 event.set_extra("_wusound_tts_sending", True)
                 await self._send_audio(event, audio)
             except Exception as exc:
@@ -165,6 +170,38 @@ class WusoundTtsPlugin(Star):
                 data = await response.json(content_type=None)
                 return await self._read_audio_from_json(data)
 
+    def _generate_mock_audio(self) -> GeneratedAudio:
+        mock_audio_url = self._get_str("mock_audio_url", "")
+        if mock_audio_url:
+            return GeneratedAudio(
+                name=self._build_audio_name_from_url(mock_audio_url),
+                url=mock_audio_url,
+            )
+
+        output_dir = Path(get_astrbot_temp_path()) / "wusound_tts_mock"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio_path = output_dir / f"mock_tts_{uuid.uuid4().hex}.wav"
+        self._write_mock_wave(audio_path)
+        return GeneratedAudio(name=audio_path.name, path=audio_path)
+
+    def _write_mock_wave(self, audio_path: Path) -> None:
+        sample_rate = 16000
+        duration_seconds = max(1, self._get_int("mock_duration_seconds", 1))
+        frequency = max(120, self._get_int("mock_frequency_hz", 440))
+        amplitude = 12000
+        frame_count = sample_rate * duration_seconds
+
+        with wave.open(str(audio_path), "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+            for sample_index in range(frame_count):
+                value = int(
+                    amplitude
+                    * math.sin(2 * math.pi * frequency * sample_index / sample_rate)
+                )
+                wav_file.writeframesraw(struct.pack("<h", value))
+
     async def _send_audio(self, event: AstrMessageEvent, audio: GeneratedAudio) -> None:
         component = self._build_audio_component(audio)
         message_chain = MessageChain([component])
@@ -175,9 +212,11 @@ class WusoundTtsPlugin(Star):
 
         await event.send(message_chain)
 
-    def _build_audio_component(self, audio: GeneratedAudio) -> File | Record:
+    def _build_audio_component(self, audio: GeneratedAudio) -> Any:
         send_as = self._get_str("send_as", "file").lower()
         if send_as == "record":
+            from astrbot.api.message_components import Record
+
             if audio.url:
                 return Record.fromURL(audio.url)
             if audio.path:

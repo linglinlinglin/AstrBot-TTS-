@@ -35,6 +35,7 @@ tts_endpoint: https://v1.wusound.cn/api/tts/simple-generate
 voice_id: 你的悟声角色 ID
 prompt_id: 可选的风格 ID
 audio_format: mp3
+mock_mode: false
 send_as: file
 use_context_send_message: true
 prefer_remote_url: true
@@ -47,6 +48,26 @@ translate_to_japanese: true
 `prefer_remote_url` 建议保持开启。悟声会返回公网 mp3 地址，直接让平台从 URL 发送文件通常比先下载到 AstrBot 本地再发送更稳定，尤其是 Docker、远程适配器或 OneBot 分离部署时。
 
 `send_as` 默认是 `file`，会发送音频文件。可以改成 `record` 尝试直接发送语音，但不同平台对语音格式和组件支持差异很大，建议先用文件跑通。
+
+## 零消耗 Mock 测试
+
+如果要排查“悟声已扣积分，但群里没有音频”的问题，先开启：
+
+```text
+mock_mode: true
+send_as: file
+use_context_send_message: true
+prefer_remote_url: false
+```
+
+开启后插件不会调用悟声 API，也不会调用翻译 LLM，只会生成一个 1 秒 WAV 测试音频并尝试发送。这样可以确认问题到底在悟声接口，还是 AstrBot/平台发送文件链路。
+
+如果你想测试远程 URL 发送，也可以填写：
+
+```text
+mock_audio_url: https://example.com/test.mp3
+prefer_remote_url: true
+```
 
 ## 悟声接口适配
 
@@ -75,6 +96,7 @@ translate_to_japanese: true
 AstrBot AI 回复
 -> 插件读取回复纯文本
 -> 估算 token 数并判断是否低于阈值
+-> 如果 mock_mode=true，直接生成测试音频
 -> 使用当前会话 LLM 翻译成日语
 -> 调用悟声实时 TTS
 -> 优先读取悟声返回的远程 mp3 URL
