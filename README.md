@@ -72,6 +72,28 @@ prefer_remote_url: true
 
 不要把 `mock_audio_url` 填成 `true`。它只能留空，或者填写一个以 `http://`、`https://` 开头的真实音频地址。
 
+## 测试命令
+
+插件提供了三个零消耗测试命令：
+
+```text
+/wusound_test
+/wusound_file_test
+/wusound_record_test
+```
+
+`/wusound_test` 使用当前 `send_as` 配置。  
+`/wusound_file_test` 强制发送文件，用于确认文件链路。  
+`/wusound_record_test` 强制发送语音，用于确认 QQ/OneBot 是否支持语音气泡。
+
+建议顺序：
+
+```text
+1. 先运行 /wusound_file_test
+2. 文件能发后，运行 /wusound_record_test
+3. record 成功后，再考虑接回悟声真实音频
+```
+
 ## 悟声接口适配
 
 插件默认按下面结构请求悟声：

@@ -57,6 +57,8 @@ class WusoundTtsPlugin(Star):
     async def after_message_sent(self, event: AstrMessageEvent) -> None:
         if event.get_extra("_wusound_tts_sending", False):
             return
+        if event.get_extra("_wusound_tts_skip_auto", False):
+            return
         if not self._get_bool("enabled", True):
             return
 
@@ -75,6 +77,39 @@ class WusoundTtsPlugin(Star):
                 await self._send_audio(event, audio)
             except Exception as exc:
                 logger.warning(f"悟声 TTS 音频生成失败: {exc}")
+
+    @filter.command("wusound_test")
+    async def wusound_test(self, event: AstrMessageEvent):
+        """发送一条 mock 音频，发送方式使用当前 send_as 配置。"""
+        async for result in self._run_mock_send_test(event):
+            yield result
+
+    @filter.command("wusound_file_test")
+    async def wusound_file_test(self, event: AstrMessageEvent):
+        """发送一条 mock 音频文件，用于确认文件发送链路。"""
+        async for result in self._run_mock_send_test(event, send_as="file"):
+            yield result
+
+    @filter.command("wusound_record_test")
+    async def wusound_record_test(self, event: AstrMessageEvent):
+        """发送一条 mock QQ 语音，用于确认 record 语音链路。"""
+        async for result in self._run_mock_send_test(event, send_as="record"):
+            yield result
+
+    async def _run_mock_send_test(
+        self,
+        event: AstrMessageEvent,
+        send_as: str | None = None,
+    ):
+        event.set_extra("_wusound_tts_skip_auto", True)
+        try:
+            audio = self._generate_mock_audio()
+            await self._send_audio(event, audio, send_as=send_as)
+            actual_send_as = send_as or self._get_str("send_as", "file")
+            yield event.plain_result(f"已发送 mock {actual_send_as} 音频：{audio.name}")
+        except Exception as exc:
+            logger.warning(f"悟声 TTS mock 发送测试失败: {exc}")
+            yield event.plain_result(f"mock 音频发送失败：{exc}")
 
     def _extract_sent_plain_text(self, event: AstrMessageEvent) -> str:
         result = event.get_result()
@@ -204,8 +239,13 @@ class WusoundTtsPlugin(Star):
                 )
                 wav_file.writeframesraw(struct.pack("<h", value))
 
-    async def _send_audio(self, event: AstrMessageEvent, audio: GeneratedAudio) -> None:
-        component = self._build_audio_component(audio)
+    async def _send_audio(
+        self,
+        event: AstrMessageEvent,
+        audio: GeneratedAudio,
+        send_as: str | None = None,
+    ) -> None:
+        component = self._build_audio_component(audio, send_as=send_as)
         message_chain = MessageChain([component])
 
         if self._get_bool("use_context_send_message", True):
@@ -214,8 +254,12 @@ class WusoundTtsPlugin(Star):
 
         await event.send(message_chain)
 
-    def _build_audio_component(self, audio: GeneratedAudio) -> Any:
-        send_as = self._get_str("send_as", "file").lower()
+    def _build_audio_component(
+        self,
+        audio: GeneratedAudio,
+        send_as: str | None = None,
+    ) -> Any:
+        send_as = (send_as or self._get_str("send_as", "file")).lower()
         if send_as == "record":
             from astrbot.api.message_components import Record
 
