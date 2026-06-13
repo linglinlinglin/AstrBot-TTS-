@@ -1,0 +1,82 @@
+# AstrBot 悟声 TTS 插件
+
+这个插件会在 AstrBot 发送 AI 回复后读取本次回复文本。当回复的估算 token 数低于配置阈值时，插件会先调用当前会话使用的 LLM 把内容翻译成日语，再调用悟声 AI 实时 TTS 接口生成音频，并把音频作为文件发送到当前会话。
+
+当前版本按“文件”发送音频，后续可以把发送组件替换为平台支持的语音组件，实现直接发送群语音。
+
+## 安装
+
+将整个 `astrbot_plugin_wusound_tts` 文件夹放到 AstrBot 插件目录，例如：
+
+```text
+data/plugins/astrbot_plugin_wusound_tts
+```
+
+然后在 AstrBot WebUI 中重载插件或重启 AstrBot。
+
+## 必填配置
+
+```text
+api_key: 悟声开发者中心创建的 API Key
+voice_id: 悟声语音角色 ID
+```
+
+也可以不在配置里填写 `api_key`，改用环境变量：
+
+```text
+WUSOUND_API_KEY=你的悟声 API Key
+```
+
+## 常用配置
+
+```text
+enabled: true
+tts_endpoint: https://v1.wusound.cn/api/tts/simple-generate
+voice_id: 你的悟声角色 ID
+prompt_id: 可选的风格 ID
+audio_format: mp3
+max_output_tokens: 80
+translate_to_japanese: true
+```
+
+`max_output_tokens` 是短回复阈值。超过这个估算 token 数就不会生成音频，避免长回复拖慢群聊。
+
+## 悟声接口适配
+
+插件默认按下面结构请求悟声：
+
+```json
+{
+  "text": "翻译后的日语文本",
+  "voiceId": "你的语音角色 ID",
+  "promptId": "可选风格 ID",
+  "format": "mp3"
+}
+```
+
+如果你的悟声控制台示例字段不同，可以在 `payload_template` 中覆盖请求体，例如：
+
+```json
+{"content":"{{text}}","voice_id":"你的角色ID","format":"mp3"}
+```
+
+`{{text}}` 会被替换为日语文本。插件支持悟声直接返回音频内容，也支持从 JSON 结果里提取 `url`、`audioUrl`、`audio_url`、`fileUrl`、`audioBase64` 等字段。
+
+## 工作流程
+
+```text
+AstrBot AI 回复
+-> 插件读取回复纯文本
+-> 估算 token 数并判断是否低于阈值
+-> 使用当前会话 LLM 翻译成日语
+-> 调用悟声实时 TTS
+-> 下载或解析音频
+-> 以文件形式发送到当前会话
+```
+
+## 已知限制
+
+- 翻译依赖当前会话可用的 LLM；如果没有可用 LLM，插件会直接把原文送去 TTS。
+- 不同平台对文件消息的支持不同，OneBot 通常可用，其他平台需要实测。
+- 当前 token 统计是轻量估算，不是精确模型 token 计数。
+- 悟声接口字段如果与默认值不一致，优先通过 `payload_template` 适配。

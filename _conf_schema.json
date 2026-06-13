@@ -1,0 +1,72 @@
+{
+  "enabled": {
+    "description": "是否启用短回复自动生成悟声音频。",
+    "type": "bool",
+    "default": true
+  },
+  "api_key": {
+    "description": "悟声 API Key。也可以留空并使用环境变量 WUSOUND_API_KEY。",
+    "type": "string",
+    "default": ""
+  },
+  "tts_endpoint": {
+    "description": "悟声同步实时生成语音接口地址。",
+    "type": "string",
+    "default": "https://v1.wusound.cn/api/tts/simple-generate"
+  },
+  "voice_id": {
+    "description": "悟声语音角色 ID。",
+    "type": "string",
+    "default": ""
+  },
+  "prompt_id": {
+    "description": "悟声角色风格 ID，可留空。",
+    "type": "string",
+    "default": ""
+  },
+  "audio_format": {
+    "description": "音频格式，默认 mp3。",
+    "type": "string",
+    "default": "mp3"
+  },
+  "max_output_tokens": {
+    "description": "AI 回复估算 token 数不超过该值时才生成音频。",
+    "type": "int",
+    "default": 80
+  },
+  "min_output_tokens": {
+    "description": "AI 回复估算 token 数少于该值时跳过。",
+    "type": "int",
+    "default": 1
+  },
+  "translate_to_japanese": {
+    "description": "是否先使用当前 AstrBot LLM 将回复翻译成日语。",
+    "type": "bool",
+    "default": true
+  },
+  "translation_prompt": {
+    "description": "中文转日语提示词。使用 {text} 表示原始回复文本；留空则使用内置提示词。",
+    "type": "text",
+    "default": ""
+  },
+  "payload_template": {
+    "description": "可选：悟声请求 JSON 模板，使用 {{text}} 插入日语文本。留空则使用内置 text/voiceId/promptId/format 字段。",
+    "type": "text",
+    "default": ""
+  },
+  "timeout_seconds": {
+    "description": "调用悟声接口的超时时间。",
+    "type": "int",
+    "default": 60
+  },
+  "max_concurrent_jobs": {
+    "description": "最多同时生成多少条音频。",
+    "type": "int",
+    "default": 2
+  },
+  "max_audio_bytes": {
+    "description": "允许发送的最大音频文件大小，默认 10MB。",
+    "type": "int",
+    "default": 10485760
+  }
+}
