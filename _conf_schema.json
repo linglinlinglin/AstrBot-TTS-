@@ -27,7 +27,7 @@
   "audio_format": {
     "description": "音频格式",
     "type": "string",
-    "default": "mp3",
+    "default": "wav",
     "hint": "可选 mp3、wav 等。wav 无损但文件更大；mp3 较小但为有损压缩"
   },
   "group_filter_mode": {
