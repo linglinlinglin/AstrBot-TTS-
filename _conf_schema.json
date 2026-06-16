@@ -103,9 +103,15 @@
     "default": 1
   },
   "translate_to_japanese": {
-    "description": "先将回复翻译为日语",
+    "description": "将文本翻译为其他语言",
     "type": "bool",
     "default": true
+  },
+  "translation_provider": {
+    "description": "翻译专用 LLM 名称，留空则使用当前会话的 LLM",
+    "type": "string",
+    "default": "",
+    "hint": "填入 AstrBot 中已配置的 LLM provider 名称（如 deepseek、openai）。留空=自动使用当前会话的 LLM"
   },
   "translation_prompt": {
     "description": "翻译提示词，{text} 代表原文",

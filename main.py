@@ -314,7 +314,20 @@ class WusoundTtsPlugin(Star):
         if not self._get_bool("translate_to_japanese", True):
             return text
 
-        provider = self.context.get_using_provider(event.unified_msg_origin)
+        # 优先使用指定的翻译专用 provider，否则使用当前会话的 provider
+        provider_name = self._get_str("translation_provider", "")
+        if provider_name:
+            try:
+                provider = self.context.get_provider(provider_name)
+            except Exception:
+                logger.warning(f"未找到翻译专用 LLM provider: {provider_name}，回退到会话 LLM")
+                provider = None
+        else:
+            provider = None
+
+        if provider is None:
+            provider = self.context.get_using_provider(event.unified_msg_origin)
+
         if provider is None:
             logger.warning("未找到当前会话 LLM，悟声 TTS 将直接使用原文。")
             return text
@@ -333,11 +346,18 @@ class WusoundTtsPlugin(Star):
                 "Text: {text}"
             )
 
+        # 使用独立 session_id 避免聊天上下文污染翻译
+        translation_session = f"wusound_translate_{uuid.uuid4().hex}"
         response = await provider.text_chat(
             prompt=prompt.replace("{text}", text),
-            session_id="",
+            session_id=translation_session,
         )
         translated_text = getattr(response, "completion_text", None) or str(response)
+        if not translated_text or translated_text == str(response):
+            logger.warning(
+                f"悟声 TTS 翻译 LLM 返回异常: 无 completion_text, "
+                f"fallback=str(response)={str(response)[:200]}"
+            )
         translated_text = self._extract_japanese(translated_text) or text
         return self._clean_text(translated_text) or text
 
@@ -364,7 +384,12 @@ class WusoundTtsPlugin(Star):
             headers=headers,
             json=payload,
         ) as response:
-            response.raise_for_status()
+            if response.status >= 400:
+                body_text = await response.text()
+                logger.error(
+                    f"悟声 TTS API 返回错误 (status={response.status}): {body_text[:500]}"
+                )
+                response.raise_for_status()
             content_type = response.headers.get("Content-Type", "")
             if content_type.startswith("audio/"):
                 audio_bytes = await response.read()
@@ -428,12 +453,17 @@ class WusoundTtsPlugin(Star):
             else:
                 await event.send(message_chain)
         finally:
-            # 发送后清理本地音频文件，避免磁盘堆积
+            # 延迟清理本地音频文件，给适配器预留读取时间
             if audio.path and audio.path.exists():
-                try:
-                    audio.path.unlink()
-                except OSError:
-                    logger.debug(f"清理音频文件失败: {audio.path}")
+                asyncio.create_task(self._safe_unlink(audio.path))
+
+    async def _safe_unlink(self, path: Path, delay: int = 3) -> None:
+        """延迟删除文件，避免适配器异步读取时文件已不存在。"""
+        await asyncio.sleep(delay)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.debug(f"清理音频文件失败: {path}")
 
     def _build_audio_component(
         self,
