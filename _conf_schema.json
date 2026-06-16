@@ -116,7 +116,7 @@
   "translation_prompt": {
     "description": "翻译提示词，{text} 代表原文",
     "type": "text",
-    "default": ""
+    "default": "You are a strict translator. Translate the following text into natural spoken Japanese.\n\nRules:\n1. Output ONLY the Japanese translation, nothing else\n2. Do NOT add prefixes like \"Translation:\" or \"Japanese:\"\n3. Do NOT explain your translation choices\n4. Do NOT use quotes, brackets, or markdown formatting\n5. Do NOT output multiple versions\n\nText: {text}"
   },
   "payload_template": {
     "description": "悟声请求 JSON 模板，{{text}} 代表文本",

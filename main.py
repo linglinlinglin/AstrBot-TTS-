@@ -76,9 +76,10 @@ class WusoundTtsPlugin(Star):
                     audio = self._generate_mock_audio()
                     logger.info("悟声 TTS Mock 模式: 已生成测试音频")
                 else:
+                    is_translating = self._get_bool("translate_to_japanese", True)
                     spoken_text = await self._translate_to_japanese(event, source_text)
-                    # 翻译结果无效（如纯英文 "can"），跳过 TTS
-                    if not re.search(r"[\u3040-\u30ff]", spoken_text):
+                    # 仅在翻译开启时做假名检测，防止 LLM 垃圾文本浪费积分
+                    if is_translating and not re.search(r"[\u3040-\u30ff]", spoken_text):
                         logger.warning(
                             f"悟声 TTS 翻译结果不含假名，跳过: 原文={source_text[:100]}, "
                             f"译文={spoken_text[:100]}"
@@ -114,6 +115,7 @@ class WusoundTtsPlugin(Star):
     @filter.command("wusound_where")
     async def wusound_where(self, event: AstrMessageEvent):
         """显示当前会话标识，方便配置白名单。"""
+        event.set_extra("_wusound_tts_skip_auto", True)
         origin = str(getattr(event, "unified_msg_origin", "") or "")
         group_id = self._extract_group_id(event, origin)
         user_id = self._extract_user_id(event)
@@ -133,6 +135,7 @@ class WusoundTtsPlugin(Star):
     @filter.command("wusound_preview")
     async def wusound_preview(self, event: AstrMessageEvent):
         """预览翻译结果，不调用悟声 API，用于排查文本质量。"""
+        event.set_extra("_wusound_tts_skip_auto", True)
         if not self._get_bool("enabled", True):
             yield event.plain_result("插件未启用。")
             return
@@ -203,11 +206,18 @@ class WusoundTtsPlugin(Star):
         if not text:
             return False
         token_count = self._estimate_token_count(text)
-        if token_count > self._get_int("max_output_tokens", 80):
+        max_tokens = self._get_int("max_output_tokens", 80)
+        min_tokens = self._get_int("min_output_tokens", 1)
+        if token_count > max_tokens:
+            logger.debug(f"悟声 TTS 跳过(超上限): token={token_count}>{max_tokens}")
             return False
-        if token_count < self._get_int("min_output_tokens", 1):
+        if token_count < min_tokens:
+            logger.debug(f"悟声 TTS 跳过(低于下限): token={token_count}<{min_tokens}")
             return False
-        return not self._looks_like_non_spoken_text(text)
+        if self._looks_like_non_spoken_text(text):
+            logger.debug(f"悟声 TTS 跳过(非口语文本): {text[:80]}")
+            return False
+        return True
 
     def _is_event_allowed(self, event: AstrMessageEvent) -> bool:
         # -- 群聊过滤 --
@@ -348,18 +358,6 @@ class WusoundTtsPlugin(Star):
             return text
 
         prompt = self._get_str("translation_prompt", "")
-        if not prompt:
-            prompt = (
-                "You are a strict translator. Translate the following text into "
-                "natural spoken Japanese.\n\n"
-                "Rules:\n"
-                "1. Output ONLY the Japanese translation, nothing else\n"
-                "2. Do NOT add prefixes like 'Translation:' or 'Japanese:'\n"
-                "3. Do NOT explain your translation choices\n"
-                "4. Do NOT use quotes, brackets, or markdown formatting\n"
-                "5. Do NOT output multiple versions\n\n"
-                "Text: {text}"
-            )
 
         # 使用独立 session_id 避免聊天上下文污染翻译
         translation_session = f"wusound_translate_{uuid.uuid4().hex}"
